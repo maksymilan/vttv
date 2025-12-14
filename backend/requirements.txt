@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+openai
+google-genai
+langchain
+langchain-community
+langchain-text-splitters
+chromadb
+moviepy
+edge-tts
+numpy
+pillow
+pypdf
+dotenv
