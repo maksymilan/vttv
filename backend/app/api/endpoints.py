@@ -10,14 +10,35 @@ from app.core.rag_engine import rag_engine
 
 router = APIRouter()
 
-@APIRouter(prefix="/api")
+@router.post("/add_knowledge")
+async def add_knowledge(file: UploadFile = File(...)):
+    """上传新的 PDF 到知识库 (增量更新)"""
+    try:
+        # 1. 保存文件到 data 目录
+        filename = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join(settings.DATA_DIR, filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # 2. 调用引擎添加到向量库
+        rag_engine.add_pdf(file_path)
+        
+        return {
+            "status": "success", 
+            "message": f"文档 '{file.filename}' 已成功加入知识库，语料库已扩大。"
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/refresh_rag")
 async def refresh_rag():
-    """手动触发 RAG 知识库更新 (如果替换了 PDF)"""
+    """(可选) 重新加载数据库连接"""
     try:
         rag_engine.initialize_knowledge_base()
-        return {"status": "success", "message": "知识库已重新加载"}
+        return {"status": "success", "message": "知识库连接已刷新"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -34,7 +55,6 @@ async def generate_video(file: UploadFile = File(...)):
 
     try:
         # 1. 视频理解 + RAG查询 + 脚本生成
-        # 注意：这里不需要手动调 RAG，process_video_pipeline 内部会调用 rag_engine.query
         script_json = video_llm.process_video_pipeline(input_video_path)
         
         # 2. 视频渲染
@@ -43,7 +63,6 @@ async def generate_video(file: UploadFile = File(...)):
         return {"status": "success", "download_url": f"/api/download/{session_id}"}
         
     except Exception as e:
-        # 打印错误堆栈以便调试
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

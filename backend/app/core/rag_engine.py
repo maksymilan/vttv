@@ -12,45 +12,60 @@ class RAGEngine:
         self.vector_store = None
 
     def initialize_knowledge_base(self):
-        """初始化知识库：如果向量库存在则加载，否则处理PDF"""
-        if os.path.exists(settings.VECTOR_DB_DIR) and os.listdir(settings.VECTOR_DB_DIR):
-            print("[INFO] 检测到现有向量数据库，正在加载...")
-            self.vector_store = Chroma(
-                persist_directory=settings.VECTOR_DB_DIR,
-                embedding_function=self.embedding_model
-            )
-        else:
-            print("[INFO] 向量数据库为空，正在初始化...")
-            self._ingest_pdf()
+        """系统启动时：总是尝试加载现有的向量数据库"""
+        # 无论是否存在数据，都初始化 Chroma 对象指向同一目录
+        # 这样如果目录里有数据会自动加载，没有数据则会在第一次添加时创建
+        print(f"[INFO] 正在加载向量数据库: {settings.VECTOR_DB_DIR}")
+        self.vector_store = Chroma(
+            persist_directory=settings.VECTOR_DB_DIR,
+            embedding_function=self.embedding_model
+        )
+        
+        # 如果数据库为空且存在默认 PDF，则加载默认 PDF
+        if not os.path.exists(settings.VECTOR_DB_DIR) and os.path.exists(settings.PDF_PATH):
+            self.add_pdf(settings.PDF_PATH)
 
-    def _ingest_pdf(self):
-        """内部方法：读取PDF并构建索引"""
-        if not os.path.exists(settings.PDF_PATH):
-            print(f"[WARNING] 未找到 PDF 文件: {settings.PDF_PATH}，跳过 RAG 初始化。")
-            return
+    def add_pdf(self, file_path: str):
+        """增量添加 PDF 到知识库"""
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"文件不存在: {file_path}")
 
-        print(f"[INFO] 正在处理 PDF: {settings.PDF_PATH}")
-        loader = PyPDFLoader(settings.PDF_PATH)
+        print(f"[INFO] 正在处理并添加 PDF: {file_path}")
+        
+        # 1. 加载与切分
+        loader = PyPDFLoader(file_path)
         docs = loader.load()
-
+        
+        # 使用较小的 chunk_size 以适应多文档检索的精度
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         splits = text_splitter.split_documents(docs)
 
-        self.vector_store = Chroma.from_documents(
-            documents=splits,
-            embedding=self.embedding_model,
-            persist_directory=settings.VECTOR_DB_DIR
-        )
-        print(f"[INFO] PDF 索引构建完成，共 {len(splits)} 个切片。")
+        if not splits:
+            print("[WARNING] PDF 内容为空或无法提取文本")
+            return
+
+        # 2. 确保 vector_store 已初始化
+        if self.vector_store is None:
+            self.initialize_knowledge_base()
+
+        # 3. 增量添加到数据库 (使用 add_documents 而不是 from_documents)
+        self.vector_store.add_documents(documents=splits)
+        
+        print(f"[INFO] 成功添加文档，新增切片数: {len(splits)}")
 
     def query(self, query_text: str, k=3):
         """查询接口"""
         if not self.vector_store:
-            # 尝试重新加载
             self.initialize_knowledge_base()
-            if not self.vector_store:
-                return "知识库未初始化或PDF文件不存在。"
-        
+            
+        # 检查数据库是否真的有数据（避免空库报错）
+        try:
+            if not self.vector_store.get()['ids']:
+                return "知识库为空，请先上传 PDF 文档。"
+        except:
+            return "知识库未初始化。"
+
+        print(f"[INFO] RAG 检索: {query_text}")
         results = self.vector_store.similarity_search(query_text, k=k)
         return "\n".join([doc.page_content for doc in results])
 
