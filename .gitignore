@@ -1,7 +1,8 @@
 .env
 /backend/data
 /backend/temp
-/__pycache__
-/service
-/node_modules
-/build
+__pycache__/
+service/
+node_modules/
+build/
+package-lock.json
