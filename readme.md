@@ -1,15 +1,3 @@
-这是一个结合了你原有的业务逻辑、最新的项目结构图以及 Windows 部署需求的完整 `README.md`。
-
-我已经为你做了以下优化：
-
-1. **拆分启动指南**：清晰地区分了 **macOS/Linux** 和 **Windows** 的操作步骤，特别是 Python 虚拟环境的激活方式。
-2. **更新目录结构**：根据你提供的截图，精确描述了 `app/api`, `app/core`, `app/service` 的层级。
-3. **新增 Git 规范说明**：结合刚才的 `.gitignore` 问题，添加了关于忽略文件的说明。
-
-你可以直接复制以下内容覆盖你项目根目录下的 `README.md`。
-
----
-
 ```markdown
 # VTTV - Video LLM & RAG Project
 
