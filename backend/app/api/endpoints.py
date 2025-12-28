@@ -56,7 +56,7 @@ async def generate_video(file: UploadFile = File(...)):
     try:
         # 1. 视频理解 + RAG查询 + 脚本生成
         script_json = video_llm.process_video_pipeline(input_video_path)
-        
+        print(f"[INFO] 生成的脚本: {script_json}")
         # 2. 视频渲染
         output_path = await render_final_video(script_json, session_id)
         

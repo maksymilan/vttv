@@ -7,7 +7,9 @@ class AiHubMixEmbeddings(Embeddings):
     def __init__(self):
         self.client = openai.OpenAI(
             api_key=settings.API_KEY,
-            base_url=settings.OPENAI_BASE_URL
+            base_url=settings.OPENAI_BASE_URL,
+            timeout=60.0, 
+            max_retries=3
         )
         # 使用你指定的模型
         self.model = "gemini-embedding-001"

@@ -14,3 +14,5 @@ numpy
 pillow
 pypdf
 dotenv
+pdf2image
+jinja2
