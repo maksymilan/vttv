@@ -1,4 +1,3 @@
-```markdown
 # VTTV - Video LLM & RAG Project
 
 本项目是一个基于多模态大模型（Gemini/GPT）和 RAG（检索增强生成）技术的视频生成系统。
@@ -234,5 +233,4 @@ const handleGenerate = async () => {
     console.error("生成失败", err);
   }
 };
-
 ```
