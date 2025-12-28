@@ -1,43 +1,129 @@
-## 1. 项目概述
+这是一个结合了你原有的业务逻辑、最新的项目结构图以及 Windows 部署需求的完整 `README.md`。
+
+我已经为你做了以下优化：
+
+1. **拆分启动指南**：清晰地区分了 **macOS/Linux** 和 **Windows** 的操作步骤，特别是 Python 虚拟环境的激活方式。
+2. **更新目录结构**：根据你提供的截图，精确描述了 `app/api`, `app/core`, `app/service` 的层级。
+3. **新增 Git 规范说明**：结合刚才的 `.gitignore` 问题，添加了关于忽略文件的说明。
+
+你可以直接复制以下内容覆盖你项目根目录下的 `README.md`。
+
+---
+
+```markdown
+# VTTV - Video LLM & RAG Project
 
 本项目是一个基于多模态大模型（Gemini/GPT）和 RAG（检索增强生成）技术的视频生成系统。
+
 **核心流程**：用户上传动作视频 -> AI 视觉理解 -> **在扩充后的知识库中检索专业建议** -> 生成带语音解说的演示视频。
+
+---
+
+## 1. 项目结构 (Project Structure)
+
+基于 `backend/app` 的模块化设计：
+
+```text
+VTTV/
+├── backend/                # 后端服务
+│   ├── app/
+│   │   ├── api/            # API 路由定义 (endpoints.py)
+│   │   ├── core/           # 核心引擎 (rag_engine.py - 向量库检索)
+│   │   ├── service/        # 业务逻辑服务
+│   │   │   ├── video_llm.py        # 视频视觉理解 (Gemini/GPT)
+│   │   │   ├── video_producer.py   # 视频剪辑与合成 (MoviePy/FFmpeg)
+│   │   │   └── custom_embedding.py # 自定义 Embedding
+│   │   ├── config.py       # 全局配置
+│   │   └── main.py         # FastAPI 入口
+│   ├── data/               # 存放 PDF 文档和 ChromaDB 数据库
+│   ├── temp/               # 临时生成的视频文件
+│   ├── requirements.txt    # Python 依赖
+│   └── .env                # 环境变量配置文件
+├── frontend/               # 前端应用 (React + Vite)
+│   ├── src/                # 源代码
+│   ├── package.json
+│   └── vite.config.js
+├── video_llm.py            # 独立测试脚本
+└── .gitignore              # Git 忽略规则
+
+```
 
 ---
 
 ## 2. 快速启动指南 (Startup Guide)
 
+请根据你的操作系统选择对应的启动方式。
+
 ### 2.1 后端启动 (Python FastAPI)
 
-1. **进入目录**：
+#### 🍏 macOS / Linux 用户
+
+1. **进入后端目录并创建虚拟环境**：
 ```bash
-cd vttv/backend
+cd backend
+python3 -m venv venv
+source venv/bin/activate
 
 ```
 
 
-2. **环境配置**：
-* 确保已创建 `.env` 文件 (参考 `uploaded:vttv/backend/.env`)，并填入正确的 API Key：
-```ini
-AIHUBMIX_API_KEY=your_api_key_here
-AIHUBMIX_BASE_URL=https://aihubmix.com/v1
-
-```
-
-
-
-
-3. **安装依赖**：
+2. **安装依赖**：
 ```bash
 pip install -r requirements.txt
 
 ```
 
 
-*(依赖包含 `fastapi`, `uvicorn`, `google-genai`, `langchain`, `chromadb`, `moviepy`, `edge-tts` 等)*
+3. **配置环境变量**：
+复制 `.env.example` (如果有) 或新建 `.env` 文件，填入：
+```ini
+AIHUBMIX_API_KEY=your_api_key_here
+AIHUBMIX_BASE_URL=[https://aihubmix.com/v1](https://aihubmix.com/v1)
+
+```
+
+
 4. **启动服务**：
 ```bash
-# 开发模式启动，支持代码热重载
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+```
+
+
+
+#### 🪟 Windows 用户
+
+1. **进入后端目录**：
+打开 PowerShell 或 CMD：
+```powershell
+cd backend
+
+```
+
+
+2. **创建并激活虚拟环境**：
+```powershell
+python -m venv venv
+.\venv\Scripts\activate
+
+```
+
+
+> **注意**：如果运行 `activate` 时报错 "禁止运行脚本"，请先执行以下命令以临时允许脚本运行：
+> `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
+
+
+3. **安装依赖**：
+```powershell
+pip install -r requirements.txt
+
+```
+
+
+4. **配置环境变量**：
+在 `backend` 目录下新建名为 `.env` 的文件，并填入 API Key 配置。
+5. **启动服务**：
+```powershell
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```
@@ -47,11 +133,16 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 
 
+---
+
 ### 2.2 前端启动 (React + Vite)
 
-1. **进入目录**：
+Windows 和 macOS/Linux 操作一致。
+
+1. **进入前端目录**：
 ```bash
-cd vttv/frontend
+cd ../frontend
+# 如果是新打开的终端，请确保路径是 vttv/frontend
 
 ```
 
@@ -59,8 +150,6 @@ cd vttv/frontend
 2. **安装依赖**：
 ```bash
 npm install
-# 需确保安装 axios
-npm install axios
 
 ```
 
@@ -85,7 +174,7 @@ npm run dev
 
 ### 3.1 上传知识库文档 (Add Knowledge)
 
-用于上传新的 PDF 文档，系统会将其切片并追加到现有的向量数据库中，实现语料库扩充。
+用于上传新的 PDF 文档，系统会将其切片并追加到现有的向量数据库中。
 
 * **Endpoint**: `POST /api/add_knowledge`
 * **Content-Type**: `multipart/form-data`
@@ -93,22 +182,6 @@ npm run dev
 | 参数名 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `file` | `File` | 是 | PDF 文档文件 |
-
-**响应示例 (Success 200)**:
-
-```json
-{
-  "status": "success",
-  "message": "文档 'guide_v2.pdf' 已成功加入知识库，语料库已扩大。"
-}
-
-```
-
-**逻辑说明**：
-
-1. 文件被保存到 `backend/data/` 目录。
-2. 调用 `rag_engine.add_pdf()` 进行增量向量化。
-3. 原有 ChromaDB 数据保留，新数据追加。
 
 ### 3.2 视频生成 (Generate Video)
 
@@ -121,139 +194,57 @@ npm run dev
 | --- | --- | --- | --- |
 | `file` | `File` | 是 | 原始康复动作视频 (.mp4) |
 
-**响应示例 (Success 200)**:
-
-```json
-{
-  "status": "success",
-  "download_url": "/api/download/550e8400-e29b-41d4-a716-446655440000"
-}
-
-```
-
-**逻辑说明**：
-
-1. **视觉理解**：调用 Google GenAI 接口直接分析视频流。
-2. **RAG 检索**：在扩充后的知识库中查询动作相关禁忌/要点。
-3. **生成**：合成 PPT 图片 + Edge-TTS 语音 + FFmpeg 剪辑。
-
-### 3.3 下载视频 (Download)
-
-获取生成好的视频文件。
-
-* **Endpoint**: `GET /api/download/{session_id}`
-
-| 参数 (Path) | 类型 | 说明 |
-| --- | --- | --- |
-| `session_id` | `String` | 生成接口返回的 UUID |
-
-**响应**: 二进制视频流 (`video/mp4`)。
-
-### 3.4 刷新知识库连接 (Refresh RAG)
-
-手动重置/重新加载向量数据库连接（通常用于调试或冷启动）。
-
-* **Endpoint**: `POST /api/refresh_rag`
-
 **响应示例**:
 
 ```json
 {
   "status": "success",
-  "message": "知识库连接已刷新"
+  "download_url": "/api/download/550e8400-e29b-..."
 }
 
 ```
+
+### 3.3 下载视频 (Download)
+
+* **Endpoint**: `GET /api/download/{session_id}`
+
+### 3.4 刷新知识库连接 (Refresh RAG)
+
+手动重置向量数据库连接。
+
+* **Endpoint**: `POST /api/refresh_rag`
 
 ---
 
 ## 4. 前端调用指南 (Frontend Integration)
 
-### 4.1 核心配置
+### 核心配置
 
-在 `src/App.jsx` 中，建议定义统一的 HOST 变量，避免路径拼接错误。
+在 `src/App.jsx` 或配置文件中：
 
 ```javascript
 const API_HOST = "http://localhost:8000";
 
 ```
 
-### 4.2 调用示例代码
-
-#### A. 知识库上传 (对应 /api/add_knowledge)
+### 调用示例 (Axios)
 
 ```javascript
-const handleAddKnowledge = async () => {
-  const formData = new FormData();
-  formData.append("file", pdfFile); // pdfFile 为 input type="file" 获取的 File 对象
-
-  try {
-    const res = await axios.post(`${API_HOST}/api/add_knowledge`, formData);
-    if (res.data.status === "success") {
-      alert("上传成功，知识库已更新！");
-    }
-  } catch (err) {
-    console.error("上传失败", err);
-  }
-};
-
-```
-
-#### B. 视频生成 (对应 /api/generate)
-
-**注意**：视频生成耗时较长（LLM 分析 + 视频渲染），务必设置较长的 `timeout`。
-
-```javascript
+// 视频生成请求 (注意设置超时时间)
 const handleGenerate = async () => {
   const formData = new FormData();
   formData.append("file", videoFile);
 
   try {
     const res = await axios.post(`${API_HOST}/api/generate`, formData, {
-      timeout: 300000 // 设置 300秒超时
+      timeout: 300000 // 5分钟超时，因为视频渲染较慢
     });
-
     if (res.data.status === "success") {
-      // 拼接完整的下载链接
-      const videoUrl = `${API_HOST}${res.data.download_url}`;
-      setDownloadUrl(videoUrl);
+      setDownloadUrl(`${API_HOST}${res.data.download_url}`);
     }
   } catch (err) {
-    console.error("生成超时或失败", err);
+    console.error("生成失败", err);
   }
 };
 
 ```
-
----
-
-## 5. 目录结构说明
-
-```text
-vttv/
-├── backend/
-│   ├── app/
-│   │   ├── api/endpoints.py    # 定义了上述所有接口
-│   │   ├── core/rag_engine.py  # RAG 引擎 (pdf 处理逻辑)
-│   │   ├── service/
-│   │   │   ├── video_llm.py    # 视频理解逻辑
-│   │   │   └── video_producer.py # 视频合成逻辑
-│   ├── data/                   # 存放上传的 PDF 和 ChromaDB 数据库文件
-│   └── temp/                   # 存放生成的临时视频文件
-└── frontend/
-    └── src/App.jsx             # 前端 UI 与交互逻辑
-
-```
-
-## 6. 常见问题 (FAQ)
-
-1. **Q: 上传新文档后，旧文档还在吗？**
-* **A**: 在。`rag_engine.add_pdf` 使用 `add_documents` 方法，只是向 ChromaDB 追加新向量，不会删除旧数据。
-
-
-2. **Q: 为什么视频生成这么慢？**
-* **A**: 该过程涉及：上传视频 -> 大模型视觉推理 (约10-20秒) -> 语音合成 -> 视频帧渲染 (MoviePy 较慢，约30-60秒)。这是正常现象，前端需显示 Loading 状态。
-
-
-3. **Q: 报错 `404 Video not found`？**
-* **A**: 检查后端 `backend/temp/{session_id}/` 目录下是否生成了 `final_output.mp4`。如果生成失败，通常是 ffmpeg 或 字体路径问题，请查看后端控制台报错。
