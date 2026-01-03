@@ -8,7 +8,7 @@ langchain
 langchain-community
 langchain-text-splitters
 chromadb
-moviepy
+moviepy<2.0
 edge-tts
 numpy
 pillow
