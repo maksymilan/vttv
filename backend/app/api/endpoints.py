@@ -162,13 +162,13 @@ def process_video_task(file_path: str, session_path: str, client_id: str, loop: 
         script_data, text_analysis = video_llm.process_video_pipeline(file_path, user_prompt=prompt, progress_callback=progress_callback, model_name=model_name)
         
         # 2. Render Video
-        progress_callback("正在渲染最终视频...")
+        progress_callback("开始制作演示视频...")
         session_id = os.path.basename(session_path)
         output_filename = "final_output.mp4"
         
-        # 使用 asyncio.run_coroutine_threadsafe 来运行异步函数
+        # 使用 asyncio.run_coroutine_threadsafe 来运行异步函数，并传递 progress_callback
         future = asyncio.run_coroutine_threadsafe(
-            render_final_video(script_data, session_id),
+            render_final_video(script_data, session_id, progress_callback),
             loop
         )
         # 等待视频渲染完成
