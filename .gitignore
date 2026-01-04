@@ -1,8 +1,85 @@
+# 环境变量
 .env
-/backend/data
-/backend/temp
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python
 __pycache__/
-service/
-node_modules/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
 build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 数据和临时文件
+/backend/data/
+/backend/temp/
+backend/data/
+backend/temp/
+*.sqlite3
+*.db
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 package-lock.json
+yarn.lock
+.pnpm-debug.log*
+
+# 前端构建产物
+build/
+dist/
+.next/
+out/
+.nuxt/
+.cache/
+.vite/
+.turbo/
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# 日志
+*.log
+logs/
+*.log.*
+
+# 旧版本/备份
+frontend_old/
+service/
+*.bak
+*.backup
+
+# LaTeX 临时文件
+*.aux
+*.nav
+*.snm
+*.toc
+*.out
+*.log
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# 系统文件
+.DS_Store
+Thumbs.db
+Desktop.ini

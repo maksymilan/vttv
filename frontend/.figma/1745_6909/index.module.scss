@@ -1,0 +1,25 @@
+* {
+  box-sizing: border-box;
+}
+
+.group16 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 190px;
+  height: 30px;
+
+  .text {
+    line-height: 30px;
+    letter-spacing: 0;
+    color: #232c62;
+    font-family: "Source Han Sans CN", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", SimHei, Arial, Helvetica, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .vector {
+    width: 18px;
+    height: 15px;
+  }
+}

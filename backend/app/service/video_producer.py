@@ -1,6 +1,7 @@
 import os
 import subprocess
 import shutil
+import asyncio
 import edge_tts
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 from pdf2image import convert_from_path
@@ -57,10 +58,24 @@ LATEX_TEMPLATE = r"""
 \end{document}
 """
 
-async def generate_audio(text, output_file):
-    """使用 Edge-TTS 生成语音文件"""
-    communicate = edge_tts.Communicate(text, "zh-CN-YunxiNeural")
-    await communicate.save(output_file)
+async def generate_audio(text, output_file, max_retries=3):
+    """使用 Edge-TTS 生成语音文件，带重试机制"""
+    for attempt in range(max_retries):
+        try:
+            communicate = edge_tts.Communicate(text, "zh-CN-YunxiNeural")
+            await communicate.save(output_file)
+            print(f"[INFO] 音频生成成功: {output_file}")
+            return
+        except Exception as e:
+            wait_time = (attempt + 1) * 2  # 递增等待时间：2秒、4秒、6秒
+            print(f"[WARN] 音频生成失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+            
+            if attempt < max_retries - 1:
+                print(f"[INFO] {wait_time}秒后重试...")
+                await asyncio.sleep(wait_time)
+            else:
+                print(f"[ERROR] 音频生成最终失败，已重试 {max_retries} 次")
+                raise Exception(f"Edge TTS 服务不可用，请稍后再试: {e}")
 
 def compile_latex_slide(title, bullets, output_image_path, session_dir):
     """
