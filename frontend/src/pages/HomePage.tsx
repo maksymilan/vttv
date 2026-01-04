@@ -60,13 +60,32 @@ export const HomePage: React.FC = () => {
   const [streamingMessage, setStreamingMessage] = useState<string>("");  // 流式消息临时存储
   const [statusInfo, setStatusInfo] = useState<string>("");  // 后端状态信息
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);  // PDF 上传状态
+  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);  // 模型选择器展开状态
   const userName = "Alex";  // 用户昵称
+  
+  // 模型列表配置
+  const models = [
+    { 
+      id: "gemini-2.0-flash", 
+      name: "Gemini 2.0 Flash", 
+      icon: "⚡", 
+      description: "快速响应，适合日常对话"
+    },
+    { 
+      id: "gemini-3-pro-preview", 
+      name: "Gemini 3.0 Pro", 
+      icon: "✨", 
+      description: "最强性能，复杂任务首选"
+    }
+  ];
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);  // PDF 文件输入
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);  // 使用 ref 保存最新的 sessionId
   const streamingMessageRef = useRef<string>("");  // 使用 ref 保存流式消息
+  const modelSelectorRef = useRef<HTMLDivElement>(null);  // 模型选择器引用
 
   // 更新 ref 的值
   useEffect(() => {
@@ -77,6 +96,23 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     streamingMessageRef.current = streamingMessage;
   }, [streamingMessage]);
+  
+  // 点击外部关闭模型选择器
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modelSelectorRef.current && !modelSelectorRef.current.contains(event.target as Node)) {
+        setIsModelSelectorOpen(false);
+      }
+    };
+    
+    if (isModelSelectorOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isModelSelectorOpen]);
 
   const currentSession = getCurrentSession();
   const chatHistory = currentSession?.messages || [];
@@ -554,6 +590,63 @@ export const HomePage: React.FC = () => {
         {/* Center Content - Chat Area */}
         <section className={`flex flex-col overflow-hidden pb-4 pt-4 transition-all duration-500 ease-in-out ${isSidebarOpen ? 'col-span-9' : 'col-span-12'}`}>
           
+          {/* Model Selector - Top Left */}
+          <div className="w-full max-w-[900px] mx-auto mb-4 px-4 flex-shrink-0">
+            <div ref={modelSelectorRef} className="relative inline-block">
+              <button
+                onClick={() => setIsModelSelectorOpen(!isModelSelectorOpen)}
+                className="flex items-center gap-2 bg-white border-2 border-purple-100 rounded-xl px-4 py-2 shadow-sm hover:shadow-md transition-all hover:border-healink-purple-start group"
+              >
+                <span className="text-xl">{models.find(m => m.id === selectedModel)?.icon}</span>
+                <div className="flex flex-col items-start">
+                  <span className="text-[10px] text-gray-500 font-medium">当前模型</span>
+                  <span className="text-xs font-bold text-healink-navy">{models.find(m => m.id === selectedModel)?.name}</span>
+                </div>
+                <svg 
+                  className={`w-4 h-4 text-healink-navy transition-transform ${isModelSelectorOpen ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isModelSelectorOpen && (
+                <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="p-1.5">
+                    {models.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          setSelectedModel(model.id);
+                          setIsModelSelectorOpen(false);
+                        }}
+                        className={`w-full flex items-start gap-3 p-3 rounded-lg transition-all hover:bg-purple-50 ${
+                          selectedModel === model.id ? 'bg-purple-50 border-2 border-healink-purple-start' : 'border-2 border-transparent'
+                        }`}
+                      >
+                        <span className="text-2xl flex-shrink-0">{model.icon}</span>
+                        <div className="flex-1 text-left">
+                          <div className="font-bold text-healink-navy text-sm mb-0.5">{model.name}</div>
+                          <div className="text-[11px] text-gray-500">{model.description}</div>
+                        </div>
+                        {selectedModel === model.id && (
+                          <div className="flex-shrink-0">
+                            <svg className="w-5 h-5 text-healink-purple-start" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          
           {/* Chat Area - Scrollable Container */}
           <div 
             ref={chatContainerRef}
@@ -675,23 +768,6 @@ export const HomePage: React.FC = () => {
                 <div ref={chatEndRef} />
               </div>
             )}
-          </div>
-
-          {/* Model Selector - Fixed at bottom */}
-          <div className="w-full max-w-[900px] mx-auto flex justify-end mb-2 px-2 flex-shrink-0">
-             <div className="relative inline-block">
-                <select 
-                    value={selectedModel} 
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="appearance-none bg-white/90 border border-purple-200 rounded-full px-5 py-2.5 pr-10 text-sm font-medium text-healink-navy focus:outline-none focus:ring-2 focus:ring-healink-purple-start shadow-md cursor-pointer hover:bg-white hover:shadow-lg transition-all backdrop-blur"
-                >
-                    <option value="gemini-3-pro-preview">✨ Gemini 3.0 Pro</option>
-                    <option value="gemini-2.0-flash">⚡ Gemini 2.0 Flash</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-healink-navy">
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                </div>
-             </div>
           </div>
 
           {/* Input Area - Fixed at bottom */}

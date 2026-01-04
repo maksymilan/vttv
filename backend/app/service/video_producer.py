@@ -9,6 +9,29 @@ from jinja2 import Template
 from app.config import settings
 from PIL import Image 
 
+# LaTeX 特殊字符转义函数
+def escape_latex(text):
+    """转义 LaTeX 特殊字符"""
+    # LaTeX 中需要转义的特殊字符
+    replacements = {
+        '\\': r'\textbackslash{}',
+        '&': r'\&',
+        '%': r'\%',
+        '$': r'\$',
+        '#': r'\#',
+        '_': r'\_',
+        '{': r'\{',
+        '}': r'\}',
+        '~': r'\textasciitilde{}',
+        '^': r'\textasciicircum{}',
+    }
+    
+    result = text
+    for char, escaped in replacements.items():
+        result = result.replace(char, escaped)
+    
+    return result
+
 # --- LaTeX 模版配置 ---
 # 使用简化的现代模板，避免复杂的 beamer 主题配置
 LATEX_TEMPLATE = r"""
@@ -65,20 +88,22 @@ LATEX_TEMPLATE = r"""
 
 async def generate_audio(text, output_file, progress_callback=None, max_retries=3):
     """使用 Edge-TTS 生成语音文件，带重试机制"""
+    text_preview = text[:30] + "..." if len(text) > 30 else text
+    
     if progress_callback:
-        progress_callback(f"🎤 准备生成语音...")
+        progress_callback(f"🎤 生成语音: {text_preview}")
         
     for attempt in range(max_retries):
         try:
             if progress_callback and attempt > 0:
-                progress_callback(f"🔄 语音生成重试 ({attempt + 1}/{max_retries})...")
+                progress_callback(f"🔄 语音生成重试 ({attempt + 1}/{max_retries}): {text_preview}")
                 
             communicate = edge_tts.Communicate(text, "zh-CN-YunxiNeural")
             await communicate.save(output_file)
             print(f"[INFO] 音频生成成功: {output_file}")
             
             if progress_callback:
-                progress_callback(f"✅ 语音生成完成")
+                progress_callback(f"✅ 语音完成: {text_preview}")
             return
             
         except Exception as e:
@@ -87,7 +112,7 @@ async def generate_audio(text, output_file, progress_callback=None, max_retries=
             
             if attempt < max_retries - 1:
                 if progress_callback:
-                    progress_callback(f"⚠️ 语音生成失败，{wait_time}秒后重试...")
+                    progress_callback(f"⚠️ 语音失败，{wait_time}秒后重试: {text_preview}")
                 print(f"[INFO] {wait_time}秒后重试...")
                 await asyncio.sleep(wait_time)
             else:
@@ -134,11 +159,15 @@ def compile_latex_slide(title, bullets, output_image_path, session_dir, progress
     # 2. 渲染模板
     if progress_callback:
         progress_callback(f"🎨 渲染 LaTeX 模板...")
+    
+    # 转义 LaTeX 特殊字符
+    escaped_title = escape_latex(title)
+    escaped_bullets = [escape_latex(bullet) for bullet in bullets]
         
     template = Template(LATEX_TEMPLATE)
     tex_content = template.render(
-        title=title,
-        bullets=bullets,
+        title=escaped_title,
+        bullets=escaped_bullets,
         font_dir=font_dir
     )
 
@@ -150,10 +179,10 @@ def compile_latex_slide(title, bullets, output_image_path, session_dir, progress
 
     # 4. 调用 xelatex 编译
     if progress_callback:
-        progress_callback(f"⚙️ 正在编译 PDF...")
+        progress_callback(f"📝 正在编译 LaTeX: {title[:20]}...")
         
     # -interaction=nonstopmode 防止编译错误时卡住进程
-    print(f"[INFO] 正在编译 LaTeX: {title[:10]}...")
+    print(f"[INFO] 正在编译 LaTeX: {title[:20]}...")
     try:
         result = subprocess.run(
             ["xelatex", "-interaction=nonstopmode", tex_filename],
@@ -169,19 +198,19 @@ def compile_latex_slide(title, bullets, output_image_path, session_dir, progress
             print(f"[WARNING] LaTeX 编译有警告")
         
         if progress_callback:
-            progress_callback(f"✅ PDF 编译完成")
+            progress_callback(f"✅ LaTeX 编译完成: {title[:20]}...")
             
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] LaTeX 编译失败: {e.stderr}")
         if progress_callback:
-            progress_callback(f"❌ LaTeX 编译失败")
+            progress_callback(f"❌ LaTeX 编译失败: {title[:20]}...")
         # 失败回退：生成一张纯色错误图片，防止程序崩溃
         Image.new('RGB', (1920, 1080), color=(200, 200, 200)).save(output_image_path)
         return
 
     # 5. 将生成的 PDF 转为 PNG
     if progress_callback:
-        progress_callback(f"🖼️ 转换 PDF 为图片...")
+        progress_callback(f"🖼️ 转换为图片: {title[:20]}...")
         
     pdf_path = os.path.join(session_dir, "slide.pdf")
     if os.path.exists(pdf_path):
@@ -191,11 +220,11 @@ def compile_latex_slide(title, bullets, output_image_path, session_dir, progress
             # 直接保存第一页
             images[0].save(output_image_path, "PNG")
             if progress_callback:
-                progress_callback(f"✅ 图片生成完成")
+                progress_callback(f"✅ 图片生成: {title[:20]}...")
     else:
         print("[ERROR] PDF 文件未生成")
         if progress_callback:
-            progress_callback(f"❌ PDF 转换失败")
+            progress_callback(f"❌ PDF 转换失败: {title[:20]}...")
         # 生成空白图兜底
         Image.new('RGB', (1920, 1080), color=(255, 255, 255)).save(output_image_path)
 
