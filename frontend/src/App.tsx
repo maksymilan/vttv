@@ -1,10 +1,10 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { LoginPage } from './pages/LoginPage';
-import { HomePage } from './pages/HomePage';
-import { ResultPage } from './pages/ResultPage';
-import { SettingsPage } from './pages/SettingsPage';
-import FigmaComponent from '../.figma/1745_6527/index.jsx';
+import { LoginPage } from './pages/LoginPage.js';
+import { HomePage } from './pages/HomePage.js';
+import { ResultPage } from './pages/ResultPage.js';
+import { SettingsPage } from './pages/SettingsPage.js';
+import FigmaComponent from '../.figma/1745_6527/index.js';
 
 function App() {
   return (
