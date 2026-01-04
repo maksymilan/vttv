@@ -11,8 +11,8 @@ class AiHubMixEmbeddings(Embeddings):
             timeout=60.0, 
             max_retries=3
         )
-        # 使用你指定的模型
-        self.model = "gemini-embedding-001"
+        # 使用 Qwen2-VL 嵌入模型
+        self.model = "gme-qwen2-vl-2b-instruct"
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """对文档列表进行向量化"""

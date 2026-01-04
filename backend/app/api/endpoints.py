@@ -248,6 +248,51 @@ async def generate_title(request: dict = Body(...)):
         print(f"[ERROR] 生成标题失败: {e}")
         return {"title": first_message[:15] + ("..." if len(first_message) > 15 else "")}
 
+@router.post("/upload-pdf")
+async def upload_pdf(
+    file: UploadFile = File(...),
+):
+    """上传 PDF 文档到知识库"""
+    try:
+        # 验证文件类型
+        if not file.filename.endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="只支持 PDF 文件")
+        
+        # 创建临时目录
+        pdf_upload_dir = os.path.join(settings.DATA_DIR, "uploaded_pdfs")
+        os.makedirs(pdf_upload_dir, exist_ok=True)
+        
+        # 保存文件
+        file_path = os.path.join(pdf_upload_dir, file.filename)
+        
+        # 如果文件已存在，添加时间戳
+        if os.path.exists(file_path):
+            import time
+            timestamp = int(time.time())
+            name, ext = os.path.splitext(file.filename)
+            file_path = os.path.join(pdf_upload_dir, f"{name}_{timestamp}{ext}")
+        
+        print(f"[INFO] 📄 正在保存 PDF: {file.filename}")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # 添加到知识库
+        print(f"[INFO] 📚 正在添加到知识库...")
+        rag_engine.add_pdf(file_path)
+        
+        print(f"[INFO] ✅ PDF 已成功添加到知识库: {file.filename}")
+        return {
+            "status": "success",
+            "message": f"文档 {file.filename} 已成功添加到知识库",
+            "filename": file.filename,
+            "path": file_path
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+
 @router.get("/download/{session_id}/{filename}")
 async def download_file(session_id: str, filename: str):
     file_path = os.path.join(settings.TEMP_DIR, session_id, filename)

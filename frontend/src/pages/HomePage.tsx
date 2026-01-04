@@ -59,7 +59,10 @@ export const HomePage: React.FC = () => {
   const [clientId] = useState(() => Math.random().toString(36).substring(7));
   const [streamingMessage, setStreamingMessage] = useState<string>("");  // 流式消息临时存储
   const [statusInfo, setStatusInfo] = useState<string>("");  // 后端状态信息
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);  // PDF 上传状态
+  const userName = "Alex";  // 用户昵称
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);  // PDF 文件输入
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const currentSessionIdRef = useRef<string | null>(currentSessionId);  // 使用 ref 保存最新的 sessionId
@@ -260,6 +263,54 @@ export const HomePage: React.FC = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
+  const handlePdfUpload = async (file: File) => {
+    console.log('📄 开始上传 PDF:', file.name);
+    setIsUploadingPdf(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `上传失败: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('✅ PDF 上传成功:', data);
+      alert(`✅ 文档 "${file.name}" 已成功添加到知识库！`);
+      
+    } catch (error: any) {
+      console.error('❌ PDF 上传失败:', error);
+      alert(`上传失败: ${error.message}`);
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  };
+
+  const handlePdfSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.name.endsWith('.pdf')) {
+        alert('只支持 PDF 文件');
+        return;
+      }
+      console.log('📄 选择了 PDF 文件:', file.name);
+      handlePdfUpload(file);
+    }
+    // 重置 input，允许上传同名文件
+    event.target.value = '';
+  };
+
+  const handleTriggerPdfUpload = () => {
+    pdfInputRef.current?.click();
+  };
+
   const uploadFile = async (file: File, prompt?: string) => {
     setIsUploading(true);
     setUploadProgress("正在上传视频...");
@@ -381,6 +432,13 @@ export const HomePage: React.FC = () => {
         accept="video/*"
         onChange={handleFileSelect}
       />
+      <input 
+        type="file" 
+        ref={pdfInputRef}
+        style={{ display: 'none' }}
+        accept=".pdf"
+        onChange={handlePdfSelect}
+      />
       {/* Background Blobs - Replicating Figma Design (Group 1) */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden opacity-[0.58]">
          {/* ellipse4 */}
@@ -437,9 +495,9 @@ export const HomePage: React.FC = () => {
               className="flex items-center gap-2 bg-[#e9e9fd] rounded-full pl-4 pr-1 py-1 cursor-pointer hover:bg-[#dadafc] transition-colors"
               onClick={() => navigate('/settings')}
             >
-              <span className="text-xs font-bold text-healink-navy">{t.userPrefix}4251</span>
-              <div className="w-6 h-6 bg-[#7f51de] rounded-full flex items-center justify-center text-[10px] text-white">
-                {t.userAvatar}
+              <span className="text-xs font-bold text-healink-navy">{userName}</span>
+              <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-xs text-white font-bold">
+                {userName.charAt(0).toUpperCase()}
               </div>
             </div>
           </div>
@@ -477,6 +535,20 @@ export const HomePage: React.FC = () => {
               ))
             )}
           </div>
+          
+          {/* PDF Upload Button */}
+          <div className="mt-4 pt-4 border-t border-gray-200 flex-shrink-0">
+            <button
+              onClick={handleTriggerPdfUpload}
+              disabled={isUploadingPdf}
+              className={`w-full flex items-center justify-center gap-2 bg-white border-2 border-healink-purple-start text-healink-purple-start rounded-full py-3 px-4 shadow-sm hover:shadow-md transition-all ${isUploadingPdf ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-50'}`}
+            >
+              <Upload className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                {isUploadingPdf ? '上传中...' : '📚 上传 PDF 到知识库'}
+              </span>
+            </button>
+          </div>
         </aside>
 
         {/* Center Content - Chat Area */}
@@ -508,7 +580,14 @@ export const HomePage: React.FC = () => {
             ) : (
               <div className="space-y-6 py-4">
                 {chatHistory.map((msg, idx) => (
-                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {/* AI 头像 - 只在左侧显示 */}
+                    {msg.role === 'model' && (
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-healink-purple-start to-healink-purple-end flex items-center justify-center text-white text-sm font-bold shadow-md">
+                        G
+                      </div>
+                    )}
+                    
                     <div className={`max-w-[80%] p-4 rounded-2xl ${
                       msg.role === 'user' 
                         ? 'bg-[#7d51de] text-white rounded-br-none' 
@@ -552,12 +631,23 @@ export const HomePage: React.FC = () => {
                         </ReactMarkdown>
                       )}
                     </div>
+                    
+                    {/* 用户头像 - 只在右侧显示 */}
+                    {msg.role === 'user' && (
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-sm font-bold shadow-md">
+                        {userName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                   </div>
                 ))}
                 
                 {/* 流式输出中的消息 */}
                 {isChatting && streamingMessage && streamingMessage.length > 0 && (
-                  <div className="flex justify-start" key="streaming">
+                  <div className="flex gap-3 justify-start" key="streaming">
+                    {/* AI 头像 */}
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-healink-purple-start to-healink-purple-end flex items-center justify-center text-white text-sm font-bold shadow-md">
+                      G
+                    </div>
                     <div className="bg-white text-healink-navy shadow-sm rounded-2xl rounded-bl-none p-4 max-w-[80%]">
                       <div className="whitespace-pre-wrap">{streamingMessage}</div>
                       <span className="inline-block w-2 h-4 bg-healink-purple-start animate-pulse ml-1">|</span>
@@ -567,7 +657,11 @@ export const HomePage: React.FC = () => {
                 
                 {/* AI 思考中的动画 */}
                 {isChatting && !streamingMessage && (
-                  <div className="flex justify-start" key="thinking">
+                  <div className="flex gap-3 justify-start" key="thinking">
+                    {/* AI 头像 */}
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-healink-purple-start to-healink-purple-end flex items-center justify-center text-white text-sm font-bold shadow-md">
+                      AI
+                    </div>
                     <div className="bg-white text-healink-navy shadow-sm rounded-2xl rounded-bl-none p-4">
                       <div className="flex space-x-2 items-center h-6">
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
