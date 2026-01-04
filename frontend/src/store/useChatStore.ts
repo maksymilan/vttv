@@ -77,9 +77,11 @@ export const useChatStore = create<ChatStore>()(
               const updatedMessages = [...session.messages, message];
               
               // 如果是第一条用户消息，异步生成智能标题
-              if (updatedMessages.length === 1 && message.type === 'text' && message.role === 'user') {
+              if (updatedMessages.length === 1 && message.role === 'user') {
                 // 使用异步方式生成标题，不阻塞当前操作
-                get().generateSessionTitle(sessionId, message.content);
+                // 对于视频消息，使用简单的描述文本作为标题生成的输入
+                const titleInput = message.type === 'video' ? '视频康复训练分析' : message.content;
+                get().generateSessionTitle(sessionId, titleInput);
               }
               
               return {
