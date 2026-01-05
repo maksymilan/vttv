@@ -246,11 +246,6 @@ curl -X POST http://localhost:8000/api/example-videos/rebuild-index
 2. 创建同名的标签文件（.txt），内容为逗号分隔的标签
 3. 调用重建索引API，或运行 `backend/scripts/rebuild_index.py` 脚本
 
-**详细文档**：
-- [范例视频功能说明](范例视频功能说明.md)
-- [快速参考](QUICK_REFERENCE.md)
-- [演示指南](DEMO_GUIDE.md)
-
 ---
 
 ## 5. 维护脚本 (Maintenance Scripts)
