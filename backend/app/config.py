@@ -19,6 +19,9 @@ class Settings:
     
     VECTOR_DB_DIR = os.path.join(DATA_DIR, "chroma_db")
     PDF_PATH = os.path.join(DATA_DIR, "knowledge.pdf")
+    
+    # 范例视频目录
+    EXAMPLE_VIDEO_DIR = os.path.join(DATA_DIR, "范例视频")
 
 settings = Settings()
 

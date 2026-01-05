@@ -70,6 +70,57 @@ class VideoLLMService:
             print(f"[INFO] 📄 响应预览: {response_text[:100]}{'...' if len(response_text) > 100 else ''}")
             return response_text
 
+    def recommend_videos(self, analysis_text: str, available_videos: list, model_name: str = "gemini-2.0-flash"):
+        """
+        根据分析结果和可用视频列表，推荐最相关的范例视频
+        """
+        print(f"[INFO] 🎬 开始智能推荐范例视频...")
+        
+        # 构造简化的视频列表字符串
+        video_list_str = "\n".join([f"- ID: {v['filename']}, Tags: {', '.join(v['tags'])}" for v in available_videos])
+        
+        prompt = f"""
+        基于以下对用户上传视频的分析，从给定的范例视频列表中选择最相关的3-5个视频。
+        
+        [用户视频分析]:
+        {analysis_text}
+        
+        [可用范例视频列表]:
+        {video_list_str}
+        
+        请返回一个 JSON 数组，包含选中的视频 ID (filename)。
+        示例: ["动作A-1", "动作B-2"]
+        
+        如果没有相关的视频，返回空数组 []。
+        只返回 JSON，不要其他文本。
+        """
+        
+        try:
+            response = self.client.models.generate_content(
+                model=model_name,
+                contents=types.Content(
+                    role="user",
+                    parts=[types.Part(text=prompt)]
+                ),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+            
+            text = response.text.strip()
+            # 清理可能的 markdown 标记
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.endswith("```"):
+                text = text[:-3]
+                
+            recommended_ids = json.loads(text)
+            print(f"[INFO] ✅ 推荐结果: {recommended_ids}")
+            return recommended_ids
+        except Exception as e:
+            print(f"[ERROR] 推荐视频失败: {e}")
+            return []
+
     def process_video_pipeline(self, video_path: str, user_prompt: str = None, progress_callback=None, model_name: str = "gemini-3-pro-preview"):
         def log(msg):
             print(f"[INFO] {msg}")

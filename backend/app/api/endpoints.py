@@ -10,17 +10,30 @@ from app.config import settings
 from app.service.video_llm import video_llm
 from app.service.video_producer import render_final_video
 from app.core.rag_engine import rag_engine
+from app.service.example_video_index import ExampleVideoIndex
 
 router = APIRouter()
+
+# 初始化范例视频索引
+example_video_index = ExampleVideoIndex(settings.EXAMPLE_VIDEO_DIR)
 
 # WebSocket Connection Manager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
+        self.message_queue: Dict[str, List[dict]] = {}  # 消息队列，用于存储离线消息
 
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
+        
+        # 如果有离线消息，连接后立即发送
+        if client_id in self.message_queue and self.message_queue[client_id]:
+            print(f"[INFO] 📨 发送 {len(self.message_queue[client_id])} 条离线消息给 {client_id}")
+            for msg in self.message_queue[client_id]:
+                await websocket.send_json(msg)
+            # 清空队列
+            self.message_queue[client_id] = []
 
     def disconnect(self, client_id: str):
         if client_id in self.active_connections:
@@ -28,7 +41,21 @@ class ConnectionManager:
 
     async def send_json(self, data: dict, client_id: str):
         if client_id in self.active_connections:
-            await self.active_connections[client_id].send_json(data)
+            try:
+                await self.active_connections[client_id].send_json(data)
+            except Exception as e:
+                print(f"[WARNING] 发送消息失败，客户端可能已断开: {e}")
+                self.disconnect(client_id)
+                # 发送失败也存入队列
+                if client_id not in self.message_queue:
+                    self.message_queue[client_id] = []
+                self.message_queue[client_id].append(data)
+        else:
+            # 客户端不在线，存入消息队列
+            print(f"[INFO] 📥 客户端 {client_id} 不在线，消息存入队列")
+            if client_id not in self.message_queue:
+                self.message_queue[client_id] = []
+            self.message_queue[client_id].append(data)
 
 manager = ConnectionManager()
 
@@ -178,11 +205,68 @@ def process_video_task(file_path: str, session_path: str, client_id: str, loop: 
         
         download_url = f"/api/download/{session_id}/{output_filename}"
         
+        # 搜索相关的范例视频
+        example_videos = []
+        try:
+            progress_callback("正在匹配相关范例视频...")
+            
+            # 确保索引已加载
+            if not example_video_index.video_index:
+                example_video_index.load_index()
+            
+            all_videos = example_video_index.video_index
+            
+            # 1. 尝试使用 LLM 进行智能推荐
+            recommended_ids = video_llm.recommend_videos(text_analysis, all_videos)
+            
+            if recommended_ids:
+                print(f"[INFO] 🎯 LLM 推荐了 {len(recommended_ids)} 个视频")
+                for vid in recommended_ids:
+                    video = next((v for v in all_videos if v['filename'] == vid), None)
+                    if video:
+                        example_videos.append({
+                            "filename": video["filename"],
+                            "category": video["category"],
+                            "tags": video["tags"],
+                            "download_url": f"/api/example-video/{video['relative_path']}",
+                            "relevance_score": 90  # LLM 推荐的高置信度
+                        })
+            
+            # 2. 如果 LLM 推荐不足 3 个，使用关键词搜索补充
+            if len(example_videos) < 3:
+                print("[INFO] 🔍 补充关键词搜索结果...")
+                search_query = text_analysis if text_analysis else ""
+                if prompt:
+                    search_query += " " + prompt
+                
+                # 排除已经推荐的视频
+                existing_ids = {v['filename'] for v in example_videos}
+                
+                keyword_results = example_video_index.search_videos(search_query, max_results=5)
+                
+                for video in keyword_results:
+                    if video['filename'] not in existing_ids:
+                        example_videos.append({
+                            "filename": video["filename"],
+                            "category": video["category"],
+                            "tags": video["tags"],
+                            "download_url": f"/api/example-video/{video['relative_path']}",
+                            "relevance_score": video.get("relevance_score", 0)
+                        })
+                        if len(example_videos) >= 5:
+                            break
+                            
+        except Exception as e:
+            print(f"[WARNING] 搜索范例视频失败: {e}")
+            import traceback
+            traceback.print_exc()
+        
         asyncio.run_coroutine_threadsafe(
             manager.send_json({
                 "type": "complete",
                 "download_url": download_url,
-                "text_analysis": text_analysis
+                "text_analysis": text_analysis,
+                "example_videos": example_videos
             }, client_id),
             loop
         )
@@ -208,6 +292,24 @@ def process_video_task(file_path: str, session_path: str, client_id: str, loop: 
             }, client_id),
             loop
         )
+
+@router.post("/upload-user-video")
+async def upload_user_video(
+    file: UploadFile = File(...),
+    session_id: str = Form(...)
+):
+    """上传用户视频并返回永久URL（用于消息列表显示）"""
+    session_path = os.path.join(settings.TEMP_DIR, session_id)
+    os.makedirs(session_path, exist_ok=True)
+    
+    filename = f"user_upload_{file.filename}"
+    file_path = os.path.join(session_path, filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    download_url = f"/api/download/{session_id}/{filename}"
+    return {"download_url": download_url, "filename": filename}
 
 @router.post("/generate")
 async def generate_video(
@@ -299,3 +401,64 @@ async def download_file(session_id: str, filename: str):
     if os.path.exists(file_path):
         return FileResponse(file_path)
     raise HTTPException(status_code=404, detail="File not found")
+
+@router.get("/example-video/{video_path:path}")
+async def get_example_video(video_path: str):
+    """获取范例视频文件"""
+    file_path = os.path.join(settings.EXAMPLE_VIDEO_DIR, video_path)
+    if os.path.exists(file_path) and file_path.endswith('.mp4'):
+        return FileResponse(file_path, media_type="video/mp4")
+    raise HTTPException(status_code=404, detail="Example video not found")
+
+@router.get("/example-videos/search")
+async def search_example_videos(query: str, max_results: int = 5):
+    """搜索范例视频"""
+    try:
+        results = example_video_index.search_videos(query, max_results)
+        # 添加下载URL
+        for video in results:
+            video["download_url"] = f"/api/example-video/{video['relative_path']}"
+        return {
+            "status": "success",
+            "results": results,
+            "total": len(results)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@router.get("/example-videos/categories")
+async def get_example_categories():
+    """获取所有范例视频分类"""
+    try:
+        categories = example_video_index.get_all_categories()
+        return {
+            "status": "success",
+            "categories": categories
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取分类失败: {str(e)}")
+
+@router.get("/example-videos/statistics")
+async def get_example_statistics():
+    """获取范例视频统计信息"""
+    try:
+        stats = example_video_index.get_statistics()
+        return {
+            "status": "success",
+            "statistics": stats
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")
+
+@router.post("/example-videos/rebuild-index")
+async def rebuild_example_index():
+    """重新构建范例视频索引"""
+    try:
+        index = example_video_index.build_index()
+        return {
+            "status": "success",
+            "message": f"索引重建完成，共找到 {len(index)} 个视频",
+            "total": len(index)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"重建索引失败: {str(e)}")
