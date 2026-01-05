@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useLanguageStore } from '../store/useLanguageStore';
 import { translations } from '../lib/translations';
-import { useChatStore, type ChatMessage } from '../store/useChatStore';
+import { useChatStore, type ChatMessage, type ExampleVideo } from '../store/useChatStore';
 
 interface HistoryItemProps {
   summary: string;
@@ -14,6 +14,52 @@ interface HistoryItemProps {
   onClick?: () => void;
   onDelete?: (e: React.MouseEvent) => void;
 }
+
+const ExampleVideoList: React.FC<{ videos: ExampleVideo[] }> = ({ videos }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const displayVideos = isExpanded ? videos : videos.slice(0, 4);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="font-bold mb-2">相关范例视频：</p>
+      <div className="grid grid-cols-2 gap-3">
+        {displayVideos.map((video, videoIdx) => (
+          <div key={videoIdx} className="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 hover:border-healink-purple-start transition-all hover:shadow-md">
+            <video
+              src={`http://localhost:8000${video.download_url}`}
+              className="w-full aspect-video object-cover bg-black"
+              controls
+              preload="metadata"
+            />
+            <div className="p-2">
+              <p className="text-xs font-semibold text-healink-navy truncate">{video.filename}</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {video.category && (
+                  <span className="text-[10px] bg-purple-100 text-healink-purple-start px-2 py-0.5 rounded-full">
+                    {video.category}
+                  </span>
+                )}
+                {video.tags.slice(0, 2).map((tag, tagIdx) => (
+                  <span key={tagIdx} className="text-[10px] bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {videos.length > 4 && (
+        <button 
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-xs text-healink-purple-start hover:underline mt-1 text-left font-medium"
+        >
+          {isExpanded ? "收起" : `查看更多 (${videos.length - 4})`}
+        </button>
+      )}
+    </div>
+  );
+};
 
 const HistoryCard: React.FC<HistoryItemProps> = ({ summary, active, onClick, onDelete }) => (
   <div 
@@ -45,23 +91,45 @@ export const HomePage: React.FC = () => {
     setCurrentSession,
     addMessage,
     getCurrentSession,
+    updateSessionProgress,
   } = useChatStore();
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<string>("");
   const [currentMessage, setCurrentMessage] = useState("");
   const [isChatting, setIsChatting] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.0-flash");
+  // 使用 localStorage 持久化模型选择
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return localStorage.getItem('vttv_selected_model') || "gemini-2.0-flash";
+  });
+  
+  // 监听模型变化并保存
+  useEffect(() => {
+    localStorage.setItem('vttv_selected_model', selectedModel);
+  }, [selectedModel]);
+
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [clientId] = useState(() => Math.random().toString(36).substring(7));
+  // 使用 sessionStorage 持久化 clientId，确保刷新后能重连到同一个 WebSocket 会话
+  const [clientId] = useState(() => {
+    const saved = sessionStorage.getItem('vttv_client_id');
+    if (saved) return saved;
+    const newId = Math.random().toString(36).substring(7);
+    sessionStorage.setItem('vttv_client_id', newId);
+    return newId;
+  });
   const [streamingMessage, setStreamingMessage] = useState<string>("");  // 流式消息临时存储
   const [statusInfo, setStatusInfo] = useState<string>("");  // 后端状态信息
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);  // PDF 上传状态
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);  // 模型选择器展开状态
   const userName = "Alex";  // 用户昵称
+  
+  // 从当前session获取进度信息和聊天历史
+  const currentSession = getCurrentSession();
+  const uploadProgress = currentSession?.progress || "";
+  const isProcessing = currentSession?.isProcessing || false;
+  const chatHistory = currentSession?.messages || [];
   
   // 模型列表配置
   const models = [
@@ -114,13 +182,13 @@ export const HomePage: React.FC = () => {
     };
   }, [isModelSelectorOpen]);
 
-  const currentSession = getCurrentSession();
-  const chatHistory = currentSession?.messages || [];
-
-  // 自动创建第一个会话
+  // 自动创建第一个会话（仅在没有会话且没有当前会话ID时）
   useEffect(() => {
-    if (sessions.length === 0) {
+    if (sessions.length === 0 && !currentSessionId) {
       createSession();
+    } else if (sessions.length > 0 && !currentSessionId) {
+      // 如果有会话但没有当前会话ID，设置为第一个会话
+      setCurrentSession(sessions[0].id);
     }
   }, []);
 
@@ -130,6 +198,14 @@ export const HomePage: React.FC = () => {
     
     websocket.onopen = () => {
       console.log('✅ WebSocket Connected');
+      // 清理当前页面的临时加载状态（但保留store中的进度信息）
+      setIsUploading(false);
+      setIsChatting(false);
+      setStreamingMessage("");
+      setStatusInfo("");
+      
+      // 注意：不清除store中的进度状态，让用户看到之前的处理进度
+      // 如果任务已完成，后端不会再发送消息；如果还在处理，会继续收到进度更新
     };
 
     websocket.onmessage = (event) => {
@@ -182,12 +258,17 @@ export const HomePage: React.FC = () => {
         setTimeout(() => setStatusInfo(''), 2000);  // 2秒后清空状态信息
       } else if (data.type === 'progress') {
         console.log("📊 进度更新:", data.message);
-        setUploadProgress(data.message);
+        const sessionId = currentSessionIdRef.current;
+        if (sessionId) {
+          updateSessionProgress(sessionId, data.message, true);
+        }
       } else if (data.type === 'complete') {
-        setUploadProgress("完成！");
+        const sessionId = currentSessionIdRef.current;
+        if (sessionId) {
+          updateSessionProgress(sessionId, "完成！", false);
+        }
         setIsUploading(false);
         
-        const sessionId = currentSessionIdRef.current;  // 使用 ref 获取最新的 sessionId
         // Add video result to chat
         if (sessionId) {
           addMessage(sessionId, { 
@@ -203,6 +284,16 @@ export const HomePage: React.FC = () => {
               content: data.text_analysis
             });
           }
+          
+          // Add example videos if available
+          if (data.example_videos && data.example_videos.length > 0) {
+            addMessage(sessionId, {
+              role: 'model',
+              type: 'example_videos' as any,
+              content: '以下是相关的范例视频：',
+              exampleVideos: data.example_videos
+            });
+          }
         }
         
         setSelectedFile(null);
@@ -215,7 +306,18 @@ export const HomePage: React.FC = () => {
     };
 
     websocket.onclose = () => {
-      console.log('WebSocket Disconnected');
+      console.log('🔌 WebSocket Disconnected');
+      // 清理流式状态，防止显示异常
+      setIsChatting(false);
+      setStreamingMessage("");
+      setStatusInfo("");
+    };
+
+    websocket.onerror = (error) => {
+      console.error('❌ WebSocket Error:', error);
+      setIsChatting(false);
+      setStreamingMessage("");
+      setStatusInfo("");
     };
 
     setWs(websocket);
@@ -349,7 +451,9 @@ export const HomePage: React.FC = () => {
 
   const uploadFile = async (file: File, prompt?: string) => {
     setIsUploading(true);
-    setUploadProgress("正在上传视频...");
+    if (currentSessionId) {
+      updateSessionProgress(currentSessionId, "正在上传视频...", true);
+    }
     const formData = new FormData();
     formData.append('file', file);
     formData.append('client_id', clientId);
@@ -432,13 +536,45 @@ export const HomePage: React.FC = () => {
     if (selectedFile && currentSessionId) {
         console.log("Starting upload for file:", selectedFile.name);
         
-        // Add video placeholder
-        const videoUrl = URL.createObjectURL(selectedFile);
-        addMessage(currentSessionId, {
-            role: 'user',
-            type: 'video',
-            content: videoUrl
-        });
+        // 先上传用户视频到服务器获取永久URL
+        try {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('session_id', currentSessionId);
+            
+            const response = await fetch('/api/upload-user-video', {
+                method: 'POST',
+                body: formData,
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // 使用服务器返回的URL而不是Blob URL
+                addMessage(currentSessionId, {
+                    role: 'user',
+                    type: 'video',
+                    content: data.download_url
+                });
+            } else {
+                console.error('Failed to upload user video for display');
+                // 降级方案：使用Blob URL（刷新后会失效）
+                const videoUrl = URL.createObjectURL(selectedFile);
+                addMessage(currentSessionId, {
+                    role: 'user',
+                    type: 'video',
+                    content: videoUrl
+                });
+            }
+        } catch (error) {
+            console.error('Error uploading user video:', error);
+            // 降级方案：使用Blob URL（刷新后会失效）
+            const videoUrl = URL.createObjectURL(selectedFile);
+            addMessage(currentSessionId, {
+                role: 'user',
+                type: 'video',
+                content: videoUrl
+            });
+        }
 
         // Add text prompt if exists
         if (currentMessage.trim()) {
@@ -706,6 +842,8 @@ export const HomePage: React.FC = () => {
                                 </a>
                             )}
                         </div>
+                      ) : msg.type === 'example_videos' && msg.exampleVideos ? (
+                        <ExampleVideoList videos={msg.exampleVideos} />
                       ) : msg.role === 'user' ? (
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       ) : (
@@ -783,10 +921,10 @@ export const HomePage: React.FC = () => {
               </div>
             )}
             
-            {isUploading && (
+            {(isUploading || isProcessing) && uploadProgress && (
               <div className="absolute -top-12 left-0 w-full text-center z-40">
                 <span className="bg-white/90 backdrop-blur px-6 py-2 rounded-full text-healink-purple-start font-bold shadow-md border border-purple-100 animate-pulse">
-                  {uploadProgress || "正在处理..."}
+                  {uploadProgress}
                 </span>
               </div>
             )}

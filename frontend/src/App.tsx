@@ -4,7 +4,7 @@ import { LoginPage } from './pages/LoginPage.js';
 import { HomePage } from './pages/HomePage.js';
 import { ResultPage } from './pages/ResultPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
-import FigmaComponent from '../.figma/1745_6527/index.js';
+import FigmaComponent from '../.figma/1745_6527/index.jsx';
 
 function App() {
   return (

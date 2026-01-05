@@ -17,13 +17,23 @@ VTTV/
 │   │   ├── api/            # API 路由定义 (endpoints.py)
 │   │   ├── core/           # 核心引擎 (rag_engine.py - 向量库检索)
 │   │   ├── service/        # 业务逻辑服务
-│   │   │   ├── video_llm.py        # 视频视觉理解 (Gemini/GPT)
-│   │   │   ├── video_producer.py   # 视频剪辑与合成 (MoviePy/FFmpeg)
-│   │   │   └── custom_embedding.py # 自定义 Embedding
+│   │   │   ├── video_llm.py            # 视频视觉理解 (Gemini/GPT)
+│   │   │   ├── video_producer.py       # 视频剪辑与合成 (MoviePy/FFmpeg)
+│   │   │   ├── custom_embedding.py     # 自定义 Embedding
+│   │   │   └── example_video_index.py  # 范例视频索引服务
 │   │   ├── config.py       # 全局配置
 │   │   └── main.py         # FastAPI 入口
+│   ├── scripts/            # 维护与工具脚本 (新)
+│   │   ├── rebuild_index.py            # 重建范例视频索引
+│   │   ├── reorganize_and_analyze.py   # AI 智能视频整理工具
+│   │   └── reorganize_videos.py        # 基础视频文件整理工具
 │   ├── data/               # 存放 PDF 文档和 ChromaDB 数据库
+│   │   └── 范例视频/        # 范例视频库
+│   │       ├── video_index.json    # 视频索引 (自动生成)
+│   │       ├── *.mp4              # 视频文件
+│   │       └── *.txt              # 标签文件
 │   ├── temp/               # 临时生成的视频文件
+│   ├── tests/              # 测试脚本 (新)
 │   ├── requirements.txt    # Python 依赖
 │   └── .env                # 环境变量配置文件
 ├── frontend/               # 前端应用 (React + Vite)
@@ -31,6 +41,10 @@ VTTV/
 │   ├── package.json
 │   └── vite.config.js
 ├── video_llm.py            # 独立测试脚本
+├── 范例视频功能说明.md      # 范例视频详细文档 (新)
+├── QUICK_REFERENCE.md      # 快速参考 (新)
+├── DEMO_GUIDE.md           # 演示指南 (新)
+├── check_system.sh         # 系统健康检查 (新)
 └── .gitignore              # Git 忽略规则
 
 ```
@@ -200,6 +214,66 @@ npm run dev
 手动重置向量数据库连接。
 
 * **Endpoint**: `POST /api/refresh_rag`
+
+### 3.4 范例视频管理 (Example Videos)
+
+#### 新增功能：智能范例视频推荐 (Smart Recommendations)
+
+系统集成了基于 LLM 的智能推荐引擎，能够：
+1. **语义理解**: 深入理解用户上传视频的动作特征（如"腰部代偿"、"膝盖内扣"）。
+2. **智能匹配**: 不仅仅是关键词匹配，还能根据动作模式推荐最相关的康复训练视频。
+3. **混合检索**: 结合向量检索和关键词匹配，确保推荐结果的准确性和多样性。
+
+**相关 API**：
+
+* **搜索范例视频**: `GET /api/example-videos/search?query={关键词}&max_results={数量}`
+* **获取视频文件**: `GET /api/example-video/{视频路径}`
+* **获取分类列表**: `GET /api/example-videos/categories`
+* **获取统计信息**: `GET /api/example-videos/statistics`
+* **重建视频索引**: `POST /api/example-videos/rebuild-index`
+
+**使用示例**：
+```bash
+# 搜索下背痛相关视频
+curl "http://localhost:8000/api/example-videos/search?query=下背痛&max_results=5"
+
+# 重建索引（添加新视频后）
+curl -X POST http://localhost:8000/api/example-videos/rebuild-index
+```
+
+**添加新范例视频**：
+1. 将视频文件（.mp4）放入 `backend/data/范例视频/` 目录
+2. 创建同名的标签文件（.txt），内容为逗号分隔的标签
+3. 调用重建索引API，或运行 `backend/scripts/rebuild_index.py` 脚本
+
+**详细文档**：
+- [范例视频功能说明](范例视频功能说明.md)
+- [快速参考](QUICK_REFERENCE.md)
+- [演示指南](DEMO_GUIDE.md)
+
+---
+
+## 5. 维护脚本 (Maintenance Scripts)
+
+项目在 `backend/scripts/` 目录下提供了一系列实用工具，用于数据管理和系统维护。
+
+### 5.1 重建视频索引 (`rebuild_index.py`)
+当手动添加或删除了范例视频文件后，运行此脚本更新 `video_index.json`。
+```bash
+python backend/scripts/rebuild_index.py
+```
+
+### 5.2 智能视频整理 (`reorganize_and_analyze.py`)
+使用 Gemini AI 自动分析未分类的视频，生成描述性文件名和标签，并将其移动到合适的分类文件夹中。
+```bash
+python backend/scripts/reorganize_and_analyze.py
+```
+
+### 5.3 基础视频整理 (`reorganize_videos.py`)
+基于文件名的规则进行简单的文件夹归档整理。
+```bash
+python backend/scripts/reorganize_videos.py
+```
 
 ---
 

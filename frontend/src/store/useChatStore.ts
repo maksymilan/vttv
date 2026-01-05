@@ -1,10 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface ExampleVideo {
+  filename: string;
+  category: string;
+  tags: string[];
+  download_url: string;
+  relevance_score: number;
+}
+
 export interface ChatMessage {
   role: 'user' | 'model';
-  type: 'text' | 'video';
+  type: 'text' | 'video' | 'example_videos';
   content: string;
+  exampleVideos?: ExampleVideo[];
 }
 
 export interface ChatSession {
@@ -13,6 +22,8 @@ export interface ChatSession {
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
+  progress?: string;  // 当前进度信息
+  isProcessing?: boolean;  // 是否正在处理
 }
 
 interface ChatStore {
@@ -27,6 +38,7 @@ interface ChatStore {
   generateSessionTitle: (sessionId: string, firstMessage: string, model?: string) => Promise<void>;
   getCurrentSession: () => ChatSession | null;
   clearAllSessions: () => void;
+  updateSessionProgress: (sessionId: string, progress: string, isProcessing: boolean) => void;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -146,6 +158,16 @@ export const useChatStore = create<ChatStore>()(
 
       clearAllSessions: () => {
         set({ sessions: [], currentSessionId: null });
+      },
+
+      updateSessionProgress: (sessionId: string, progress: string, isProcessing: boolean) => {
+        set((state) => ({
+          sessions: state.sessions.map((session) =>
+            session.id === sessionId 
+              ? { ...session, progress, isProcessing, updatedAt: Date.now() } 
+              : session
+          ),
+        }));
       },
     }),
     {
